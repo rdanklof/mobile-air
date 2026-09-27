@@ -54,7 +54,19 @@ fun NodeView(node: NativeUINode, overrideModifier: Modifier? = null) {
 
 @Composable
 private fun ResolvedNodeView(node: NativeUINode, overrideModifier: Modifier? = null) {
-    key(node.id) {
+    // Node ids are positional, so a re-render can put a different kind of
+    // node under the same id (a form column replaced by a tappable row).
+    // The press-feedback and animation phases below call remember/animate*
+    // conditionally, and reusing the old slots for the new shape crashes
+    // (ClassCastException in collectIsPressedAsState). Keying on the shape
+    // as well gives such a node a fresh group.
+    val hasPressShape = node.onPress != 0 || node.onLongPress != 0
+    val hasPressFeedbackShape = hasPressShape && (
+        node.props.getFloat("press-scale", 0f) > 0f ||
+            node.props.getFloat("press-opacity", 0f) > 0f ||
+            node.props.getFloat("press-translate-y", 0f) != 0f
+        )
+    key(node.id, node.type, hasPressShape, hasPressFeedbackShape) {
         val renderer = NativeRendererRegistry.get(node.type)
         val isDarkMode = isSystemInDarkTheme()
         val safeAreaTop = LocalSafeAreaTop.current
